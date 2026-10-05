@@ -14,3 +14,6 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y php-cli php-zip
       - run: php -l public/api.php && php -l private/config.example.php && php -l private/hash-password.php
       - run: python3 tests/api_smoke.py
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/reader-browser.mjs

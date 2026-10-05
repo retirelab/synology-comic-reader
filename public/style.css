@@ -4,3 +4,8 @@
 .book .cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .book .cover .icon{font-size:42px}
 .book strong{font-size:14px}.book small{font-size:12px}
+/* v0.1.4: full-height half-spread viewport; source stays intact. */
+#pageFrame{position:relative;margin:0 auto;overflow:hidden}
+#pageFrame #pageImage{position:absolute;top:0;max-width:none;max-height:none;margin:0;object-fit:fill}
+#halfLabel{font-size:11px;color:#84c9bc;white-space:nowrap}
+.readerBottom{flex-wrap:wrap}.readerBar{flex-wrap:wrap}
