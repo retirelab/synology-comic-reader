@@ -1,5 +1,5 @@
-import {read, write, clampPage} from './storage.js';
-import {makeCover} from './covers.js';
+import {read, write, clampPage} from './storage.js?v=0.1.3';
+import {makeCover} from './covers.js?v=0.1.3';
 const $ = id => document.getElementById(id);
 let folder = '', items = [], book = null, page = 0, count = 0, version = '', sequence = 0, imageController, bookSequence = 0, browseSequence = 0;
 let rtl = read('rtl', false), heightFit = read('heightFit', false), objectUrl;

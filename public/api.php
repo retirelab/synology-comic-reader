@@ -44,7 +44,7 @@ if (in_array($action, ['login', 'logout'], true)) {
     session_regenerate_id(true); $_SESSION['authenticated'] = true; $_SESSION['last_seen'] = time(); reply(['ok'=>true]);
 }
 $authenticated = !empty($_SESSION['authenticated']) && time() - (int)($_SESSION['last_seen'] ?? 0) < 43200;
-if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.2']);
+if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.3']);
 if (!$authenticated) fail(401, '로그인이 필요합니다.');
 $_SESSION['last_seen'] = time();
 session_write_close();

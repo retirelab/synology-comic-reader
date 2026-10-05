@@ -1,4 +1,4 @@
-# 내 만화책장 v0.1.2
+# 내 만화책장 v0.1.3
 
 DS218 시놀로지 NAS 안에 보관된 ZIP/CBZ 만화를 휴대폰 브라우저에서 읽는 개인용 앱 초안입니다.
 
@@ -84,3 +84,7 @@ JavaScript 및 PHP API 검사는 GitHub Actions에서 수행합니다. 기존 v0
 - Web Station 지원 모델/설명: https://www.synology.com/dsm/packages/WebStation
 - Web Station PHP 웹 서비스 구성: https://kb.synology.com/en-id/DSM/tutorial/How_to_host_a_website_on_Synology_NAS
 - ZIP 항목의 읽기 전용 스트림: https://www.php.net/manual/en/ziparchive.getstream.php
+
+## v0.1.3 업데이트
+
+정적 JavaScript/CSS 파일과 import 주소에 버전 쿼리를 추가하여 이전 브라우저 캐시가 남아 표지 카드가 표시되지 않는 문제를 방지합니다. 새 배포 때 이 쿼리 버전도 함께 올립니다. NAS에 public 파일을 덮어쓴 뒤 앱 주소에 `?v=0.1.3`을 붙여 처음 열면 HTML도 새 주소로 불러옵니다.

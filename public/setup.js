@@ -1,4 +1,4 @@
-import {makeConfig} from './config-generator.js';
+import {makeConfig} from './config-generator.js?v=0.1.3';
 const $ = id => document.getElementById(id);
 let url;
 $('setupForm').addEventListener('submit', async event=>{
