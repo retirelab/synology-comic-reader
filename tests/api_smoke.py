@@ -50,7 +50,7 @@ class ApiTests(unittest.TestCase):
             port = s.getsockname()[1]
         cls.url = f'http://127.0.0.1:{port}/api.php'
         cls.log = (cls.root / 'php.log').open('w')
-        cls.server = subprocess.Popen(['php', '-S', f'127.0.0.1:{port}', '-t', str(PROJECT / 'public')], env={**os.environ, 'COMIC_READER_CONFIG':str(cls.config)}, stdout=cls.log, stderr=cls.log)
+        cls.server = subprocess.Popen(['php', '-d', 'opcache.enable=0', '-d', 'opcache.enable_cli=0', '-S', f'127.0.0.1:{port}', '-t', str(PROJECT / 'public')], env={**os.environ, 'COMIC_READER_CONFIG':str(cls.config)}, stdout=cls.log, stderr=cls.log)
         for _ in range(50):
             try:
                 urllib.request.urlopen(cls.url + '?action=status', timeout=1).close()
