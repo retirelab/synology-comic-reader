@@ -41,6 +41,16 @@ class ApiTests(unittest.TestCase):
             z.writestr('fake.png', '<html>not an image</html>')
         (cls.root / 'outside.cbz').write_bytes(cls.archive.read_bytes())
         (cls.books / 'link.cbz').symlink_to(cls.root / 'outside.cbz')
+        art = cls.books / '작품 폴더'
+        art.mkdir()
+        (art / '01.png').write_bytes(PNG + b'OTHER')
+        (art / 'cover.png').write_bytes(PNG + b'ART')
+        (art / 'outside.png').symlink_to(cls.root / 'outside.cbz')
+        (cls.books / 'empty-folder').mkdir()
+        (cls.books / '@eaDir').mkdir()
+        (cls.books / '#recycle').mkdir()
+        with zipfile.ZipFile(cls.books / 'empty.zip', 'w') as z:
+            z.writestr('notes.txt', 'no cover')
         cls.original = hashlib.sha256(cls.archive.read_bytes()).hexdigest()
         password_hash = subprocess.check_output(['php', '-r', 'echo password_hash("test-password-only", PASSWORD_DEFAULT);'], text=True)
         cls.config = cls.root / 'config.php'
@@ -108,6 +118,30 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(self.archive.read_bytes()).hexdigest(), self.original)
         self.assertEqual(self.call('image', path='sample.zip', page=-1, version=pages['version'])[0], 404)
         self.assertEqual(self.call('image', path='sample.zip', page=0, version='stale')[0], 409)
+
+    def test_artwork_and_volume_covers(self):
+        self.assertEqual(self.call('cover', path='sample.zip')[0], 401)
+        self.assertEqual(self.call('folder-cover', path='작품 폴더')[0], 401)
+        self.login()
+        items = {item['name']:item for item in json.loads(self.call('browse')[1])['items']}
+        self.assertTrue(items['작품 폴더']['cover'])
+        self.assertFalse(items['empty-folder']['cover'])
+        self.assertTrue(items['sample.zip']['cover'])
+        self.assertNotIn('@eaDir', items)
+        self.assertNotIn('#recycle', items)
+        status, data, headers = self.call('folder-cover', path='작품 폴더')
+        self.assertEqual(status, 200)
+        self.assertEqual(data, PNG + b'ART')
+        self.assertEqual(headers['Content-Type'], 'image/png')
+        self.assertEqual(self.call('folder-cover', path='empty-folder')[0], 404)
+        self.assertEqual(self.call('folder-cover', path='..')[0], 404)
+        status, data, headers = self.call('cover', path='sample.zip')
+        self.assertEqual(status, 200)
+        self.assertEqual(data, PNG + b'PAGE1')
+        self.assertEqual(self.call('cover', path='empty.zip')[0], 404)
+        self.assertEqual(self.call('cover', path='disguised.zip')[0], 422)
+        self.assertEqual(self.call('cover', path='link.cbz')[0], 404)
+        self.assertEqual(hashlib.sha256(self.archive.read_bytes()).hexdigest(), self.original)
 
     def test_browser_generated_config(self):
         original = self.config.read_text()

@@ -44,7 +44,7 @@ if (in_array($action, ['login', 'logout'], true)) {
     session_regenerate_id(true); $_SESSION['authenticated'] = true; $_SESSION['last_seen'] = time(); reply(['ok'=>true]);
 }
 $authenticated = !empty($_SESSION['authenticated']) && time() - (int)($_SESSION['last_seen'] ?? 0) < 43200;
-if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.1']);
+if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.2']);
 if (!$authenticated) fail(401, '로그인이 필요합니다.');
 $_SESSION['last_seen'] = time();
 session_write_close();
@@ -58,24 +58,68 @@ function resolvePath(string $root, $relative): string {
     return $path;
 }
 function isBook(string $path): bool { return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['zip','cbz'], true); }
+function isImage(string $path): bool {
+    return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg','jpeg','png','webp','gif'], true);
+}
+function folderCover(string $folder): ?string {
+    $names = scandir($folder);
+    if ($names === false) return null;
+    $candidates = [];
+    foreach ($names as $name) {
+        $file = $folder . '/' . $name;
+        if ($name[0] === '.' || is_link($file) || !is_file($file) || !is_readable($file) || !isImage($name)) continue;
+        $candidates[] = $name;
+    }
+    usort($candidates, function ($a, $b) {
+        $priority = fn($name) => in_array(strtolower(pathinfo($name, PATHINFO_FILENAME)), ['cover','folder'], true) ? 0 : 1;
+        return ($priority($a) <=> $priority($b)) ?: strnatcasecmp($a, $b) ?: strcmp($a, $b);
+    });
+    return $candidates ? $folder . '/' . $candidates[0] : null;
+}
+// Send one image, validating its actual format. Never extract a ZIP to disk.
+function sendImage($stream, int $size): void {
+    if ($size < 1 || $size > 32*1024*1024) fail(413, '이미지 한 장의 크기는 최대 32MB입니다.');
+    $prefix = fread($stream, min(65536, $size));
+    if ($prefix === false || $prefix === '') fail(422, '빈 이미지입니다.');
+    if (!class_exists('finfo')) fail(503, 'PHP fileinfo 확장을 활성화해 주세요.');
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($prefix);
+    if (!in_array($mime,['image/jpeg','image/png','image/webp','image/gif'],true)) fail(422, '지원하지 않는 이미지입니다.');
+    header('Content-Type: '.$mime);
+    echo $prefix;
+    $sent = strlen($prefix);
+    while (!feof($stream) && !connection_aborted() && $sent < $size) {
+        $chunk = fread($stream, min(65536, $size-$sent));
+        if ($chunk === false || $chunk === '') break;
+        echo $chunk; $sent += strlen($chunk);
+    }
+    fclose($stream);
+}
 $relative = $_GET['path'] ?? '';
 $path = resolvePath($root, $relative);
+if ($action === 'folder-cover') {
+    if (!is_dir($path) || !is_readable($path)) fail(404, '폴더를 읽을 수 없습니다.');
+    $cover = folderCover($path);
+    if ($cover === null) fail(404, '폴더 표지가 없습니다.');
+    $stream = fopen($cover, 'rb');
+    if ($stream === false) fail(404, '폴더 표지를 읽을 수 없습니다.');
+    sendImage($stream, (int)filesize($cover)); exit;
+}
 if ($action === 'browse') {
     if (!is_dir($path) || !is_readable($path)) fail(404, '폴더를 읽을 수 없습니다.');
     $items = []; $names = scandir($path);
     if ($names === false) fail(503, '폴더를 읽을 수 없습니다.');
     foreach ($names as $name) {
-        if ($name[0] === '.') continue;
+        if ($name[0] === '.' || in_array($name, ['@eaDir','#recycle'], true)) continue;
         $item = $path . '/' . $name;
         if (is_link($item) || !is_readable($item)) continue;
         $folder = is_dir($item);
         if (!$folder && (!is_file($item) || !isBook($item))) continue;
-        $items[] = ['name'=>$name, 'path'=>ltrim(substr($item, strlen($root)), '/'), 'folder'=>$folder, 'size'=>$folder ? 0 : filesize($item)];
+        $items[] = ['name'=>$name, 'path'=>ltrim(substr($item, strlen($root)), '/'), 'folder'=>$folder, 'size'=>$folder ? 0 : filesize($item), 'cover'=>$folder ? folderCover($item) !== null : true];
     }
     usort($items, fn($a,$b)=>($b['folder'] <=> $a['folder']) ?: strnatcasecmp($a['name'],$b['name']));
     reply(['items'=>$items]);
 }
-if (!in_array($action,['pages','image'],true)) fail(400, '알 수 없는 요청입니다.');
+if (!in_array($action,['pages','image','cover'],true)) fail(400, '알 수 없는 요청입니다.');
 if (!is_file($path) || !isBook($path) || !is_readable($path)) fail(404, '만화 파일을 읽을 수 없습니다.');
 if (!class_exists('ZipArchive')) fail(503, 'Web Station PHP 프로필에서 zip 확장을 활성화해 주세요.');
 $zip = new ZipArchive();
@@ -96,25 +140,13 @@ $version = hash('sha256', (string)filesize($path) . ':' . (string)filemtime($pat
 if ($action === 'pages') {
     $zip->close(); reply(['count'=>count($pages), 'version'=>$version]);
 }
-if (($_GET['version'] ?? '') !== $version) fail(409, '파일이 변경되었습니다. 책을 다시 열어 주세요.');
-$page = filter_var($_GET['page'] ?? null, FILTER_VALIDATE_INT);
+if ($action === 'image' && ($_GET['version'] ?? '') !== $version) fail(409, '파일이 변경되었습니다. 책을 다시 열어 주세요.');
+$page = $action === 'cover' ? 0 : filter_var($_GET['page'] ?? null, FILTER_VALIDATE_INT);
 if ($page === false || $page === null || $page < 0 || $page >= count($pages)) fail(404, '페이지를 찾을 수 없습니다.');
 $entry = $pages[$page];
 if ($entry['encrypted']) fail(422, '암호가 걸린 ZIP은 첫 버전에서 지원하지 않습니다.');
 if ($entry['size'] < 1 || $entry['size'] > 32*1024*1024) fail(413, '이미지 한 장의 크기는 최대 32MB입니다.');
 $stream = $zip->getStream($entry['name']);
 if ($stream === false) fail(422, '이미지를 읽을 수 없습니다.');
-$prefix = fread($stream, min(65536, $entry['size']));
-if ($prefix === false || $prefix === '') fail(422, '빈 이미지입니다.');
-if (!class_exists('finfo')) fail(503, 'PHP fileinfo 확장을 활성화해 주세요.');
-$mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($prefix);
-if (!in_array($mime,['image/jpeg','image/png','image/webp','image/gif'],true)) fail(422, '지원하지 않는 이미지입니다.');
-header('Content-Type: '.$mime);
-echo $prefix;
-$sent = strlen($prefix);
-while (!feof($stream) && !connection_aborted() && $sent < $entry['size']) {
-    $chunk = fread($stream, min(65536, $entry['size']-$sent));
-    if ($chunk === false || $chunk === '') break;
-    echo $chunk; $sent += strlen($chunk);
-}
-fclose($stream); $zip->close();
+sendImage($stream, $entry['size']);
+$zip->close();

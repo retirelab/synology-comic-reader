@@ -1,4 +1,5 @@
 import {read, write, clampPage} from './storage.js';
+import {makeCover} from './covers.js';
 const $ = id => document.getElementById(id);
 let folder = '', items = [], book = null, page = 0, count = 0, version = '', sequence = 0, imageController, bookSequence = 0, browseSequence = 0;
 let rtl = read('rtl', false), heightFit = read('heightFit', false), objectUrl;
@@ -18,11 +19,11 @@ function renderBooks() {
   const filtered = items.filter(item => item.name.toLocaleLowerCase().includes(query));
   for (const item of filtered) {
     const button = document.createElement('button'); button.className = 'book';
-    const icon = document.createElement('span'); icon.className='icon'; icon.textContent = item.folder ? '▤' : '▥';
+    const cover = makeCover(item);
     const title = document.createElement('strong'); title.textContent=item.name;
     const small = document.createElement('small'); const saved = progress(item);
     small.textContent = item.folder ? '폴더 열기' : saved ? `이어 읽기 · ${saved.page+1} / ${saved.count}` : `${(item.size/1048576).toFixed(1)} MB · 읽기`;
-    button.append(icon,title,small); button.onclick = () => run(() => item.folder ? browse(item.path) : openBook(item)); $('books').append(button);
+    button.append(cover,title,small); button.onclick = () => run(() => item.folder ? browse(item.path) : openBook(item)); $('books').append(button);
   }
   if (!filtered.length) { const empty = document.createElement('p'); empty.textContent = '표시할 책이 없습니다.'; $('books').append(empty); }
 }
