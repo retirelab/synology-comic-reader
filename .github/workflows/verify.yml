@@ -1,0 +1,16 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check public/app.js && node --test tests/*.test.js
+      - run: sudo apt-get update && sudo apt-get install -y php-cli php-zip
+      - run: php -l public/api.php && php -l private/config.example.php && php -l private/hash-password.php
+      - run: python3 tests/api_smoke.py
