@@ -1,0 +1,8 @@
+config.php
+.env
+*.zip
+*.cbz
+*.cbr
+*.rar
+node_modules/
+__pycache__/
