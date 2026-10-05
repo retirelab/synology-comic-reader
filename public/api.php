@@ -13,6 +13,15 @@ function reply(array $data): void {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE); exit;
 }
+// Browser-generated PBKDF2 configs and existing PHP password_hash configs.
+function verifyViewerPassword(string $password, string $stored): bool {
+    if (!str_starts_with($stored, 'pbkdf2-sha256$')) return password_verify($password, $stored);
+    $parts = explode('$', $stored);
+    if (count($parts) !== 4 || $parts[1] !== '600000' || !preg_match('/^[a-f0-9]{32}$/D', $parts[2]) || !preg_match('/^[a-f0-9]{64}$/D', $parts[3])) return false;
+    $salt = hex2bin($parts[2]);
+    if ($salt === false) return false;
+    return hash_equals($parts[3], hash_pbkdf2('sha256', $password, $salt, 600000, 64, false));
+}
 $configPath = getenv('COMIC_READER_CONFIG') ?: '/volume1/comic-reader-private/config.php';
 if (!is_file($configPath)) fail(503, '설정 파일이 없습니다. 설치 안내에 따라 NAS 설정을 먼저 완료해 주세요.');
 $config = require $configPath;
@@ -29,13 +38,13 @@ if (in_array($action, ['login', 'logout'], true)) {
     if ($action === 'logout') { $_SESSION = []; session_destroy(); reply(['ok'=>true]); }
     $input = json_decode(file_get_contents('php://input', false, null, 0, 4096) ?: '', true);
     $password = is_array($input) ? ($input['password'] ?? null) : null;
-    if (!is_string($password) || strlen($password) > 1024 || !password_verify($password, $config['password_hash'])) {
+    if (!is_string($password) || strlen($password) > 1024 || !verifyViewerPassword($password, $config['password_hash'])) {
         usleep(800000); fail(401, '비밀번호를 확인해 주세요.');
     }
     session_regenerate_id(true); $_SESSION['authenticated'] = true; $_SESSION['last_seen'] = time(); reply(['ok'=>true]);
 }
 $authenticated = !empty($_SESSION['authenticated']) && time() - (int)($_SESSION['last_seen'] ?? 0) < 43200;
-if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.0']);
+if ($action === 'status') reply(['authenticated'=>$authenticated, 'version'=>'0.1.1']);
 if (!$authenticated) fail(401, '로그인이 필요합니다.');
 $_SESSION['last_seen'] = time();
 session_write_close();

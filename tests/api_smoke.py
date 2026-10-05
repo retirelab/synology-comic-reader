@@ -109,6 +109,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.call('image', path='sample.zip', page=-1, version=pages['version'])[0], 404)
         self.assertEqual(self.call('image', path='sample.zip', page=0, version='stale')[0], 409)
 
+    def test_browser_generated_config(self):
+        original = self.config.read_text()
+        password = '테스트-password-1234'
+        salt = bytes(range(16))
+        derived = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 600000).hex()
+        stored = f'pbkdf2-sha256$600000${salt.hex()}${derived}'
+        config = "<?php return ['root'=>" + repr(str(self.books)) + ", 'password_hash'=>" + repr(stored) + ", 'secure_cookie'=>false];"
+        try:
+            self.config.write_text(config)
+            self.assertEqual(self.call('login', {'password':'wrong'})[0], 401)
+            self.assertEqual(self.call('login', {'password':password})[0], 200)
+            self.assertEqual(self.call('browse')[0], 200)
+        finally:
+            self.config.write_text(original)
+
     def test_paths_and_disguised_images(self):
         self.login()
         self.assertEqual(self.call('pages', path='../outside.cbz')[0], 404)
